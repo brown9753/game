@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>팩트체크 스와이프 게임</title>
+  <style>
+    /* 기본 리셋 및 폰트 설정 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: #f4f6f8;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      color: #333;
+    }
+
+    /* 게임 컨테이너 중앙 정렬 */
+    #app-container {
+      width: 100%;
+      max-width: 400px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    /* 카드 스타일 */
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+      transition: all 0.4s ease;
+      margin-bottom: 24px;
+      min-height: 320px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      border: 3px solid transparent;
+      position: relative;
+    }
+
+    /* 정답/오답 반응형 컬러 */
+    .card.correct {
+      background-color: #f0fdf4;
+      border-color: #22c55e; /* 초록색 */
+    }
+    .card.incorrect {
+      background-color: #fef2f2;
+      border-color: #ef4444; /* 빨간색 */
+    }
+
+    /* 카드 내 요소들 */
+    .card img {
+      width: 100%;
+      max-height: 200px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      display: none; /* JS에서 조건부로 표시 */
+    }
+    .headline {
+      font-size: 1.4rem;
+      font-weight: 700;
+      line-height: 1.4;
+      word-break: keep-all;
+    }
+    .reason {
+      display: none; /* 정답 확인 후 표시 */
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 2px dashed #e5e7eb;
+      font-size: 1rem;
+      color: #4b5563;
+      font-weight: 500;
+      width: 100%;
+    }
+
+    /* 버튼 컨트롤 영역 */
+    .controls {
+      display: flex;
+      gap: 12px;
+    }
+    .btn {
+      flex: 1;
+      padding: 16px;
+      border: none;
+      border-radius: 16px;
+      font-size: 1.2rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.2s ease;
+      color: white;
+    }
+    .btn:active {
+      transform: scale(0.95);
+    }
+    .btn-real {
+      background-color: #3b82f6; /* 파란색 */
+      box-shadow: 0 4px 0 #2563eb;
+    }
+    .btn-fake {
+      background-color: #ef4444; /* 빨간색 */
+      box-shadow: 0 4px 0 #dc2626;
+    }
+    
+    /* 다음 문제 버튼 (단일) */
+    .btn-next {
+      display: none; /* 정답 확인 후 표시 */
+      width: 100%;
+      background-color: #1f2937;
+      box-shadow: 0 4px 0 #111827;
+    }
+
+    /* 결과 화면 */
+    #result-screen {
+      display: none;
+      background: white;
+      border-radius: 20px;
+      padding: 40px 24px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+    }
+    .score-title {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 12px;
+      color: #111827;
+    }
+    .score-text {
+      font-size: 1.2rem;
+      color: #6b7280;
+      margin-bottom: 30px;
+    }
+    .btn-restart {
+      width: 100%;
+      background-color: #22c55e;
+      box-shadow: 0 4px 0 #16a34a;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="app-container">
+    <!-- 게임 진행 화면 -->
+    <div id="game-screen">
+      <div id="card" class="card">
+        <img id="card-image" src="" alt="뉴스 이미지">
+        <div id="headline" class="headline">헤드라인 로딩 중...</div>
+        <div id="reason" class="reason">여기에 판별 이유가 표시됩니다.</div>
+      </div>
+      
+      <div id="action-buttons" class="controls">
+        <!-- isFake = false -->
+        <button class="btn btn-real" onclick="checkAnswer(false)">진짜</button>
+        <!-- isFake = true -->
+        <button class="btn btn-fake" onclick="checkAnswer(true)">가짜</button>
+      </div>
+      
+      <button id="next-button" class="btn btn-next" onclick="nextCard()">다음 문제로 넘어가기</button>
+    </div>
+
+    <!-- 최종 결과 화면 -->
+    <div id="result-screen">
+      <h1 class="score-title">결과 발표!</h1>
+      <p id="final-score" class="score-text">3개 중 X개 맞혔어!</p>
+      <button class="btn btn-restart" onclick="initGame()">다시 도전하기</button>
+    </div>
+  </div>
+
+  <script>
+    // 요청받은 JSON 배열 데이터
+    const newsData = [
+      {
+        "headline": "전국 학교 10시 등교 의무화",
+        "isFake": true,
+        "reason": "이런 방침은 공개된 적 없음",
+        "image": "롯데우승.png"
+      },
+      {
+        "headline": "새 마블 영화에 이도현 확정...할리우드 진출",
+        "isFake": true,
+        "reason": "사진도 딥페이크이며 이런 일은 일어나지 않음",
+        "image": "마블.png"
+      },
+      {
+        "headline": "레고 소재 바뀌어...친환경적",
+        "isFake": false,
+        "reason": "최근 재활용 플라스틱 사용으로 바뀜",
+        "image": "레고.png"
+      }
+    ];
+
+    let currentIndex = 0;
+    let score = 0;
+
+    // DOM 요소 캐싱
+    const cardEl = document.getElementById('card');
+    const imageEl = document.getElementById('card-image');
+    const headlineEl = document.getElementById('headline');
+    const reasonEl = document.getElementById('reason');
+    const actionButtons = document.getElementById('action-buttons');
+    const nextButton = document.getElementById('next-button');
+    const gameScreen = document.getElementById('game-screen');
+    const resultScreen = document.getElementById('result-screen');
+    const finalScoreText = document.getElementById('final-score');
+
+    // 게임 초기화
+    function initGame() {
+      currentIndex = 0;
+      score = 0;
+      gameScreen.style.display = 'block';
+      resultScreen.style.display = 'none';
+      renderCard();
+    }
+
+    // 카드 렌더링
+    function renderCard() {
+      const currentNews = newsData[currentIndex];
+      
+      // 스타일 초기화
+      cardEl.className = 'card';
+      reasonEl.style.display = 'none';
+      actionButtons.style.display = 'flex';
+      nextButton.style.display = 'none';
+
+      // 텍스트 데이터 세팅
+      headlineEl.textContent = currentNews.headline;
+      reasonEl.innerHTML = `<strong>정답: ${currentNews.isFake ? '가짜' : '진짜'}</strong><br>${currentNews.reason}`;
+
+      // 이미지 조건부 렌더링
+      if (currentNews.image) {
+        imageEl.src = currentNews.image;
+        imageEl.style.display = 'block';
+      } else {
+        imageEl.style.display = 'none';
+      }
+    }
+
+    // 정답 확인 로직
+    // userGuessIsFake : 유저가 '가짜'를 눌렀으면 true, '진짜'를 눌렀으면 false
+    function checkAnswer(userGuessIsFake) {
+      const currentNews = newsData[currentIndex];
+      const isCorrect = (userGuessIsFake === currentNews.isFake);
+
+      // 카드 색상 반응 (초록/빨강)
+      if (isCorrect) {
+        cardEl.classList.add('correct');
+        score++;
+      } else {
+        cardEl.classList.add('incorrect');
+      }
+
+      // 이유 표시 & 버튼 전환
+      reasonEl.style.display = 'block';
+      actionButtons.style.display = 'none';
+      nextButton.style.display = 'block';
+    }
+
+    // 다음 카드로 이동
+    function nextCard() {
+      currentIndex++;
+      if (currentIndex < newsData.length) {
+        renderCard();
+      } else {
+        showResult();
+      }
+    }
+
+    // 결과 화면 표시
+    function showResult() {
+      gameScreen.style.display = 'none';
+      resultScreen.style.display = 'block';
+      finalScoreText.textContent = `총 ${newsData.length}개 중에서 ${score}개를 맞혔어!`;
+    }
+
+    // 페이지 로드 시 게임 시작
+    window.onload = initGame;
+  </script>
+</body>
+</html>
